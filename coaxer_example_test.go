@@ -7,17 +7,19 @@ import (
 
 func Example() {
 
-	manifest := func() (interface{}, error) {
-		return "Hi", nil
+	makeHiString := func() (interface{}, error) {
+		return "hi", nil
 	}
 
-	c := NewCoaxer(manifest, func(c *Coaxer) {
+	ctx := context.Background()
+
+	c := NewCoaxer(func(c *Coaxer) {
 		c.Attempts = 10
 	})
 
-	context := context.Background()
+	promise := c.Coax(ctx, makeHiString, "hi string")
 
-	result := <-c.Coax(context)
+	result := promise.Result()
 
 	if result.Error != nil {
 		fmt.Println(result.Error)

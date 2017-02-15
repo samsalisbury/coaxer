@@ -2,33 +2,40 @@ package coaxer
 
 import (
 	"context"
-	"sync"
 	"time"
 )
 
-// Coaxer tries to coax a value into existence.
-type Coaxer struct {
-	// Attempts is the maximum number of times to try calling the manifest func
-	// before giving up.
-	Attempts,
-	// Backoff is the current backoff duration (time between attempts).
-	Backoff time.Duration
-	// BackoffScale is the scaling factor used on Backoff on each attempt.
-	BackoffScale int
-	// Timeout is how long manifest is given per attempt before being abandoned.
-	Timeout time.Duration
-	// TimeoutScale is the scaling factor for the Timeout on each attempt.
-	TimeoutScale int
+type (
+	// Coaxer tries to coax a value into existence.
+	Coaxer struct {
+		// Attempts is the maximum number of times to try calling the manifest func
+		// before giving up.
+		Attempts,
+		// Backoff is the current backoff duration (time between attempts).
+		Backoff time.Duration
+		// BackoffScale is the scaling factor used on Backoff on each attempt.
+		BackoffScale int
+		// Timeout is how long manifest is given per attempt before being abandoned.
+		Timeout time.Duration
+		// TimeoutScale is the scaling factor for the Timeout on each attempt.
+		TimeoutScale int
+	}
 
-	// manifest is called up to attempts times to try to create value.
-	manifest func() (interface{}, error)
-	// cache is populated once manifest succeeds.
-	cache Result
-	// once is used to invoke the attemptor once.
-	once sync.Once
-	// result returns the final result once cache is populated.
-	result chan Result
-}
+	// Result is the result of coaxing.
+	Result struct {
+		// Value represents the final value obtained by coaxing. If Error is not
+		// nil, then Value will be nil.
+		Value interface{}
+		// Error represents the fact that Value was not successfully coaxed into
+		// existence. If error is not nil, then Value is nil.
+		Error error
+	}
+
+	// A ManifestFunc is specified by the consumer of this package to describe how
+	// to optimistically generate a value, or return an error should that not be
+	// possible.
+	ManifestFunc func() (interface{}, error)
+)
 
 const (
 	// DefaultAttempts is the default number of attempts for a new Coaxer.
@@ -43,44 +50,36 @@ const (
 	DefaultTimeout = 2 * time.Second
 )
 
-// NewCoaxer returns a new Coaxer using manifest as its value constructor.
+// NewCoaxer returns a new configured coaxer.
 //
 // You can optionally pass any number of functions to configure which will
 // be called in the order passed on the new Coaxer before it is returned.
-func NewCoaxer(manifest func() (interface{}, error), configure ...func(*Coaxer)) *Coaxer {
+func NewCoaxer(configure ...func(*Coaxer)) *Coaxer {
 	c := &Coaxer{
 		Attempts:     DefaultAttempts,
 		Backoff:      DefaultBackoff,
 		BackoffScale: DefaultBackoffScale,
 		Timeout:      DefaultTimeout,
 		TimeoutScale: DefaultTimeoutScale,
-		manifest:     manifest,
-		result:       make(chan Result),
 	}
 	for _, f := range configure {
-		f(c)
+		if f != nil {
+			f(c)
+		}
 	}
 	return c
 }
 
-// Result is the result of coaxing.
-type Result struct {
-	// Value represents the final value obtained by coaxing. If Error is not
-	// nil, then Value will be nil.
-	Value interface{}
-	// Error represents the fact that Value was not successfully coaxed into
-	// existence. If error is not nil, then Value is nil.
-	Error error
-}
-
 // Coax immediately returns a channel that will eventually produce the Result of
 // this attempt to coax the result of manifest into existence.
-func (c *Coaxer) Coax(ctx context.Context) <-chan Result {
-	c.once.Do(func() { go c.generateResult(ctx, c.result) })
-	return c.result
-}
-
-// generateResult is responsible for generating the final Result.
-func (c *Coaxer) generateResult(ctx context.Context, r chan<- Result) {
-	// TODO
+func (c *Coaxer) Coax(ctx context.Context, manifest ManifestFunc, desc string) Promise {
+	run := coaxRun{
+		Coaxer:      *c, // This is a copy, so don't worry about modifying it.
+		ctx:         ctx,
+		desc:        desc,
+		manifest:    manifest,
+		result:      make(chan Result),
+		finalResult: make(chan Result),
+	}
+	return run.future()
 }
