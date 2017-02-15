@@ -145,7 +145,6 @@ func TestCoaxer(t *testing.T) {
 					Do: func() {
 						defer close(wait) // Allow Manifest to run.
 						(*cancel)()
-						time.Sleep(time.Second)
 					},
 				}
 			},

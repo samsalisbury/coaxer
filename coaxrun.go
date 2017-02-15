@@ -3,7 +3,6 @@ package coaxer
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -79,7 +78,6 @@ func (run *coaxRun) attemptOnce() bool {
 	case intermediate = <-run.attempt():
 	}
 	if intermediate.Error == nil {
-		log.Printf("INTERMEDIATE RESULT for %q", run.desc)
 		return run.finalise(intermediate)
 	}
 	if temp, ok := intermediate.Error.(interface {
