@@ -96,40 +96,55 @@ func TestCoaxer(t *testing.T) {
 			},
 		},
 		{
-			Desc: "non-temporary error returns that error (unrecoverable)",
+			Desc: "error not implementing Temporary returns that error (unrecoverable)",
 			Setup: func() TestFuncs {
 				return TestFuncs{
 					Manifest: func() (interface{}, error) {
-						return nil, permErr("error 1")
+						return nil, permErr("does not implement Temporary")
 					},
 					Context: context.Background,
 				}
 			},
-			Error: fmt.Errorf("error 1 (unrecoverable)"),
+			Error: fmt.Errorf("does not implement Temporary (unrecoverable)"),
 		},
 		{
-			Desc: "Temporary()=false error returns that error (unrecoverable)",
+			Desc: "error with Temporary() == false returns that error (unrecoverable)",
 			Setup: func() TestFuncs {
 				return TestFuncs{
 					Manifest: func() (interface{}, error) {
-						return nil, tempErr("error 1", false)
+						return nil, tempErr("Temporary() == false", false)
 					},
 					Context: context.Background,
 				}
 			},
-			Error: fmt.Errorf("error 1 (unrecoverable)"),
+			Error: fmt.Errorf("Temporary() == false (unrecoverable)"),
 		},
 		{
-			Desc: "persistent temporary error gives up after 3 attempts",
+			Desc: "persistent temporary error gives up after 3 attempts, same error each time",
 			Setup: func() TestFuncs {
 				return TestFuncs{
 					Manifest: func() (interface{}, error) {
-						return nil, tempErr("error 2", true)
+						return nil, tempErr("temporary error", true)
 					},
 					Context: context.Background,
 				}
 			},
-			Error: fmt.Errorf("gave up after 3 attempts"),
+			Error: fmt.Errorf(`gave up after 3 attempts; received 3x "temporary error"`),
+		},
+		{
+			Desc: "persistent temporary error gives up after 3 attempts, different error each time",
+			Setup: func() TestFuncs {
+				errorNumber := 0
+				return TestFuncs{
+					Manifest: func() (interface{}, error) {
+						errorNumber++
+						message := fmt.Sprintf("error %d", errorNumber)
+						return nil, tempErr(message, true)
+					},
+					Context: context.Background,
+				}
+			},
+			Error: fmt.Errorf(`gave up after 3 attempts; received 1x "error 1", 1x "error 2", 1x "error 3"`),
 		},
 		{
 			Desc: "context cancelled before a single Manifest call completes",

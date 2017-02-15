@@ -3,6 +3,7 @@ package coaxer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -47,6 +48,9 @@ type coaxRun struct {
 	result chan Result
 	// finalResult is used internally to ensure we only get one result.
 	finalResult chan Result
+	// errors is a slice containing all received errors, in the order they were
+	// received.
+	errors []error
 }
 
 func (run *coaxRun) future() Promise {
@@ -63,8 +67,31 @@ func (run *coaxRun) generateResult() {
 		if run.attemptOnce() {
 			return
 		}
+		time.Sleep(run.Backoff)
+		run.Backoff *= time.Duration(run.BackoffScale)
 	}
-	run.finalise(Result{Error: fmt.Errorf("gave up after %d attempts", run.Attempts)})
+	run.finalise(run.gaveUpResult())
+}
+
+// errorCounts groups errors by their string representation.
+func (run *coaxRun) errorCounts() map[string]int {
+	m := map[string]int{}
+	for _, err := range run.errors {
+		str := err.Error()
+		c := m[str] // c == 0 when that string is not a key of m.
+		m[str] = c + 1
+	}
+	return m
+}
+
+func (run *coaxRun) gaveUpResult() Result {
+	var counts []string
+	for err, count := range run.errorCounts() {
+		counts = append(counts, fmt.Sprintf("%dx %q", count, err))
+	}
+	const format = "gave up after %d attempts; received %s"
+	err := fmt.Errorf(format, run.Attempts, strings.Join(counts, ", "))
+	return Result{Error: err}
 }
 
 func (run *coaxRun) attemptOnce() bool {
@@ -86,8 +113,7 @@ func (run *coaxRun) attemptOnce() bool {
 		// Not temporary, return original error, suffixed (unrecoverable).
 		return run.finalise(Result{Error: fmt.Errorf("%s (unrecoverable)", intermediate.Error)})
 	}
-	time.Sleep(run.Backoff)
-	run.Backoff *= time.Duration(run.BackoffScale)
+	run.errors = append(run.errors, intermediate.Error)
 	return false
 }
 
