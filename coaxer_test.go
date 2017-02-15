@@ -178,37 +178,37 @@ func TestCoaxer(t *testing.T) {
 			}
 
 			// Wait for the actual result to be manifested.
-			actual := promise.Result()
+			actual, actualErr := promise.Result()
 
 			// Assert the error is as expected.
-			if actual.Error != nil {
+			if actualErr != nil {
 				if test.Error == nil {
 					// If we get unexpected error, assume there is no point
 					// in further assertions.
-					t.Fatalf("got error %q; want nil", actual.Error)
+					t.Fatalf("got error %q; want nil", actualErr)
 				}
-				if actual.Error.Error() != test.Error.Error() {
-					t.Errorf("got error %q; want %q", actual.Error, test.Error)
+				if actualErr.Error() != test.Error.Error() {
+					t.Errorf("got error %q; want %q", actualErr, test.Error)
 				}
 			}
-			if actual.Error == nil {
+			if actualErr == nil {
 				if test.Error != nil {
 					t.Errorf("got nil; want error %q", test.Error)
 				}
 			}
 
 			// Assert the value is as expected.
-			if actual.Value != nil {
+			if actual != nil {
 				if test.Value == nil {
-					t.Errorf("got a %T value; want nil (value was: % #v)", actual.Value, actual.Value)
+					t.Errorf("got a %T value; want nil (value was: % #v)", actual, actual)
 				}
-				a := fmt.Sprintf("% #v", actual.Value)
+				a := fmt.Sprintf("% #v", actual)
 				e := fmt.Sprintf("% #v", test.Value)
 				if a != e {
 					t.Errorf("got value %q; want %q", a, e)
 				}
 			}
-			if actual.Value == nil {
+			if actual == nil {
 				if test.Value != nil {
 					t.Errorf("got nil value; want % #v", test.Value)
 				}

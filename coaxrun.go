@@ -3,6 +3,7 @@ package coaxer
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,8 +16,9 @@ type Promise struct {
 	sync.RWMutex
 }
 
-// Result waits for the final result to be generated and then returns it.
-func (p *Promise) Result() Result {
+// Result waits for the final result and possible error to be generated and then
+// returns them.
+func (p *Promise) Result() (interface{}, error) {
 	p.RLock()
 	defer p.RUnlock()
 	if p.final == nil {
@@ -27,7 +29,21 @@ func (p *Promise) Result() Result {
 		p.Unlock()
 		p.RLock()
 	}
-	return *p.final
+	return p.final.Value, p.final.Error
+}
+
+// Err waits for the final result and returns the generated error or nil if the
+// value was successfully coaxed. (Call Value to get the value.)
+func (p *Promise) Err() error {
+	_, err := p.Result()
+	return err
+}
+
+// Value waits for the final result and returns the generated value or nil if
+// there was an error. (Call Err to get the error.)
+func (p *Promise) Value() interface{} {
+	v, _ := p.Result()
+	return v
 }
 
 // coaxRun encapsulates a single run of coaxing a value.
@@ -89,6 +105,7 @@ func (run *coaxRun) gaveUpResult() Result {
 	for err, count := range run.errorCounts() {
 		counts = append(counts, fmt.Sprintf("%dx %q", count, err))
 	}
+	sort.Strings(counts) // This gives stable output.
 	const format = "gave up after %d attempts; received %s"
 	err := fmt.Errorf(format, run.Attempts, strings.Join(counts, ", "))
 	return Result{Error: err}

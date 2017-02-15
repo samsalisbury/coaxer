@@ -3,6 +3,7 @@ package coaxer
 import (
 	"context"
 	"fmt"
+	"log"
 )
 
 func Example() {
@@ -19,11 +20,10 @@ func Example() {
 
 	promise := c.Coax(ctx, makeHiString, "hi string")
 
-	result := promise.Result()
+	value, err := promise.Result()
 
-	if result.Error != nil {
-		fmt.Println(result.Error)
-		return
+	if err != nil {
+		log.Fatal(err)
 	}
-	fmt.Println(result.Value)
+	fmt.Println(value)
 }
